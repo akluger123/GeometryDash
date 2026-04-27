@@ -1,1 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Dash Clone</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas {
+            display: block;
+            background: linear-gradient(#0072ff, #00c6ff);
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">Score: 0</div>
+    <canvas id="gameCanvas"></canvas>
 
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const ui = document.getElementById('ui');
+
+        // Game Constants
+        const GRAVITY = 0.8;
+        const JUMP_FORCE = -12;
+        const GROUND_HEIGHT = 100;
+        const PLAYER_SIZE = 40;
+
+        let score = 0;
+        let gameActive = true;
+
+        // Player object
+        const player = {
+            x: 100,
+            y: 0,
+            width: PLAYER_SIZE,
+            height: PLAYER_SIZE,
+            dy: 0,
+            jumped: false,
+            rotation: 0
+        };
+
+        // Obstacles array
+        let obstacles = [];
+        let frameCount = 0;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.y = canvas.height - GROUND_HEIGHT - PLAYER_SIZE;
+        }
+
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Controls
+        const handleJump = () => {
+            if (player.y >= canvas.height - GROUND_HEIGHT - PLAYER_SIZE) {
+                player.dy = JUMP_FORCE;
+            }
+        };
+
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') handleJump(); });
+        window.addEventListener('touchstart', handleJump);
+        window.addEventListener('mousedown', handleJump);
+
+        function spawnObstacle() {
+            const size = 40 + Math.random() * 20;
+            obstacles.push({
+                x: canvas.width,
+                y: canvas.height - GROUND_HEIGHT - size,
+                width: size,
+                height: size,
+                speed: 8 + (score / 10) // Speed up over time
+            });
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            // Player Physics
+            player.dy += GRAVITY;
+            player.y += player.dy;
+
+            // Ground Collision
+            if (player.y > canvas.height - GROUND_HEIGHT - PLAYER_SIZE) {
+                player.y = canvas.height - GROUND_HEIGHT - PLAYER_SIZE;
+                player.dy = 0;
+                // Snap rotation to 90deg increments when landing
+                player.rotation = Math.round(player.rotation / 90) * 90;
+            } else {
+                // Rotate while in air
+                player.rotation += 5;
+            }
+
+            // Obstacle Logic
+            if (frameCount % 60 === 0) spawnObstacle();
+            
+            obstacles.forEach((obs, index) => {
+                obs.x -= obs.speed;
+
+                // Collision Detection
+                if (
+                    player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y
+                ) {
+                    gameOver();
+                }
+
+                // Cleanup and Scoring
+                if (obs.x + obs.width < 0) {
+                    obstacles.splice(index, 1);
+                    score++;
+                    ui.innerText = `Score: ${score}`;
+                }
+            });
+
+            frameCount++;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Ground
+            ctx.fillStyle = '#333';
+            ctx.fillRect(0, canvas.height - GROUND_HEIGHT, canvas.width, GROUND_HEIGHT);
+            ctx.strokeStyle = '#00f2ff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, canvas.height - GROUND_HEIGHT, canvas.width, 2);
+
+            // Draw Player (with rotation)
+            ctx.save();
+            ctx.translate(player.x + player.width/2, player.y + player.height/2);
+            ctx.rotate(player.rotation * Math.PI / 180);
+            ctx.fillStyle = '#f0f';
+            ctx.fillRect(-player.width/2, -player.height/2, player.width, player.height);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(-player.width/2, -player.height/2, player.width, player.height);
+            // "Eyes" for the cube
+            ctx.fillStyle = 'white';
+            ctx.fillRect(5, -10, 10, 10);
+            ctx.fillRect(5, 5, 10, 10);
+            ctx.restore();
+
+            // Draw Obstacles (Spikes)
+            ctx.fillStyle = '#ff4444';
+            obstacles.forEach(obs => {
+                ctx.beginPath();
+                ctx.moveTo(obs.x, obs.y + obs.height);
+                ctx.lineTo(obs.x + obs.width / 2, obs.y);
+                ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                ctx.fill();
+            });
+
+            requestAnimationFrame(() => {
+                update();
+                draw();
+            });
+        }
+
+        function gameOver() {
+            gameActive = false;
+            if (confirm(`Game Over! Score: ${score}\nPlay again?`)) {
+                location.reload();
+            }
+        }
+
+        draw();
+    </script>
+</body>
+</html>
